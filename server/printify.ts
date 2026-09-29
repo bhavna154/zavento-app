@@ -54,11 +54,28 @@ export interface ForwardOrderPayload {
 const PRINTIFY_BASE_URL = 'https://api.printify.com/v1';
 
 export function getPrintifyToken(): string | null {
-  const token = process.env.PRINTIFY_API_TOKEN;
-  if (!token || token.trim() === '' || token === 'your_printify_api_token_here') {
+  let token =
+    process.env.PRINTIFY_API_TOKEN ||
+    process.env.PRINTIFY_TOKEN ||
+    process.env.PRINTIFY_ACCESS_TOKEN ||
+    process.env.VITE_PRINTIFY_API_TOKEN;
+
+  if (!token || typeof token !== 'string') {
     return null;
   }
-  return token.trim();
+  token = token.trim();
+  // Strip surrounding double or single quotes if copied from env file
+  if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+    token = token.slice(1, -1).trim();
+  }
+  // Strip redundant 'Bearer ' prefix if user pasted it
+  if (token.toLowerCase().startsWith('bearer ')) {
+    token = token.slice(7).trim();
+  }
+  if (!token || token === 'your_printify_api_token_here') {
+    return null;
+  }
+  return token;
 }
 
 export function getExplicitShopId(): string | null {

@@ -7,8 +7,11 @@ import { useAppStore } from '../lib/store';
 export function ProductDetail() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
-  const { printifyProducts, addToCart, toggleWishlist, isInWishlist } = useAppStore();
-  const allProducts = useMemo(() => combineProducts(printifyProducts), [printifyProducts]);
+  const { printifyProducts, isPrintifyConfigured, addToCart, toggleWishlist, isInWishlist } = useAppStore();
+  const allProducts = useMemo(
+    () => combineProducts(printifyProducts, isPrintifyConfigured || printifyProducts.length > 0),
+    [printifyProducts, isPrintifyConfigured]
+  );
   const product = allProducts.find(p => p.id === productId);
   
   const [selectedImage, setSelectedImage] = useState(0);

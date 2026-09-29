@@ -7,8 +7,11 @@ import { ProductCard } from '../components/ProductCard';
 export function Search() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  const { printifyProducts } = useAppStore();
-  const allProducts = useMemo(() => combineProducts(printifyProducts), [printifyProducts]);
+  const { printifyProducts, isPrintifyConfigured } = useAppStore();
+  const allProducts = useMemo(
+    () => combineProducts(printifyProducts, isPrintifyConfigured || printifyProducts.length > 0),
+    [printifyProducts, isPrintifyConfigured]
+  );
 
   const results = useMemo(() => {
     if (!query.trim()) return [];

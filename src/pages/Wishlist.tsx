@@ -6,8 +6,11 @@ import { MOCK_PRODUCTS, combineProducts } from '../lib/data';
 import { ProductCard } from '../components/ProductCard';
 
 export function Wishlist() {
-  const { wishlist: wishlistIds, printifyProducts } = useAppStore();
-  const allProducts = useMemo(() => combineProducts(printifyProducts), [printifyProducts]);
+  const { wishlist: wishlistIds, printifyProducts, isPrintifyConfigured } = useAppStore();
+  const allProducts = useMemo(
+    () => combineProducts(printifyProducts, isPrintifyConfigured || printifyProducts.length > 0),
+    [printifyProducts, isPrintifyConfigured]
+  );
   const wishlistedProducts = useMemo(() => allProducts.filter(p => wishlistIds.includes(p.id)), [allProducts, wishlistIds]);
 
   return (

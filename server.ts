@@ -69,38 +69,59 @@ async function startServer() {
       const token = getPrintifyToken();
       if (!token) {
         return res.json({
-          success: true,
-          products: cachedPrintifyProducts,
-          source: 'cache',
+          success: false,
+          configured: false,
+          products: [],
+          count: 0,
+          source: 'none',
           synced: false,
-          message: 'PRINTIFY_API_TOKEN is not set. Showing catalog.',
+          message: 'PRINTIFY_API_TOKEN is not configured in environment variables.',
         });
       }
 
       // If cache is empty or older than 5 minutes, auto-sync
       const fiveMinutes = 5 * 60 * 1000;
+      let syncError: string | null = null;
       if (cachedPrintifyProducts.length === 0 || !lastSyncTime || (Date.now() - lastSyncTime > fiveMinutes)) {
         try {
+          console.log('[Server] Fetching live products from Printify...');
           const result = await fetchShopProducts();
           cachedPrintifyProducts = result.products;
           lastSyncTime = Date.now();
+          console.log(`[Server] Synced ${result.products.length} products from Printify shop ${result.shopId}`);
         } catch (fetchErr: any) {
-          console.warn('[Printify] Auto-fetch failed:', fetchErr.message);
+          syncError = fetchErr.message;
+          console.error('[Server] Printify auto-fetch error:', fetchErr.message);
         }
+      }
+
+      if (syncError && cachedPrintifyProducts.length === 0) {
+        return res.status(200).json({
+          success: false,
+          configured: true,
+          error: syncError,
+          products: [],
+          count: 0,
+          message: `Failed to fetch products from Printify: ${syncError}`,
+        });
       }
 
       res.json({
         success: true,
+        configured: true,
         products: cachedPrintifyProducts,
         count: cachedPrintifyProducts.length,
         lastSyncTime,
         source: 'printify',
       });
     } catch (error: any) {
+      console.error('[Server] Products endpoint error:', error.message);
       res.status(500).json({
         success: false,
+        configured: true,
         error: error.message,
         products: cachedPrintifyProducts,
+        count: cachedPrintifyProducts.length,
       });
     }
   });

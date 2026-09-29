@@ -9,8 +9,11 @@ export function Category() {
   const { categoryName } = useParams<{ categoryName: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isSale = searchParams.get('sale') === 'true';
-  const { printifyProducts } = useAppStore();
-  const allProducts = useMemo(() => combineProducts(printifyProducts), [printifyProducts]);
+  const { printifyProducts, isPrintifyConfigured } = useAppStore();
+  const allProducts = useMemo(
+    () => combineProducts(printifyProducts, isPrintifyConfigured || printifyProducts.length > 0),
+    [printifyProducts, isPrintifyConfigured]
+  );
   
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('popular');

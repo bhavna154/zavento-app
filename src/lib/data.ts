@@ -301,15 +301,31 @@ export function normalizeCategory(cat: string | undefined): Category {
 }
 
 /**
- * Merge Printify synced products with default catalog.
+ * Return products for the store.
+ * If synced Printify products exist, return ONLY those real Printify products.
+ * If Printify is configured (token is set), demo mock products are completely disabled (never shown).
+ * Fallback to MOCK_PRODUCTS only when Printify is completely unconfigured.
  */
-export function combineProducts(synced: Product[] = []): Product[] {
-  if (!synced || synced.length === 0) return MOCK_PRODUCTS;
-  const normalizedSynced = synced.map((p) => ({
-    ...p,
-    category: normalizeCategory(p.category),
-  }));
-  const syncedIds = new Set(normalizedSynced.map((p) => p.id));
-  return [...normalizedSynced, ...MOCK_PRODUCTS.filter((p) => !syncedIds.has(p.id))];
+export function combineProducts(synced: Product[] = [], isPrintifyConfigured: boolean = false): Product[] {
+  if (Array.isArray(synced) && synced.length > 0) {
+    return synced.map((p) => ({
+      ...p,
+      category: normalizeCategory(p.category),
+    }));
+  }
+
+  // Check if token exists in client env or if store marked Printify as configured
+  const hasClientToken = typeof import.meta !== 'undefined' && Boolean(
+    (import.meta as any)?.env?.VITE_PRINTIFY_API_TOKEN ||
+    (import.meta as any)?.env?.PRINTIFY_API_TOKEN
+  );
+
+  // If Printify is configured (token present) or products are expected, NEVER show demo products!
+  if (isPrintifyConfigured || hasClientToken) {
+    return [];
+  }
+
+  // Fallback only if Printify is completely unconfigured
+  return MOCK_PRODUCTS;
 }
 

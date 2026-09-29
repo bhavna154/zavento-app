@@ -7,8 +7,11 @@ import { useAppStore } from '../lib/store';
 import { ProductCard } from '../components/ProductCard';
 
 export function Home() {
-  const { printifyProducts } = useAppStore();
-  const allProducts = useMemo(() => combineProducts(printifyProducts), [printifyProducts]);
+  const { printifyProducts, isPrintifyConfigured } = useAppStore();
+  const allProducts = useMemo(
+    () => combineProducts(printifyProducts, isPrintifyConfigured || printifyProducts.length > 0),
+    [printifyProducts, isPrintifyConfigured]
+  );
   const trendingProducts = allProducts.slice(0, 4);
 
   return (

@@ -14,6 +14,9 @@ interface AppState {
   wishlist: string[];
   printifyProducts: Product[];
   isPrintifySyncing: boolean;
+  isPrintifyConfigured: boolean;
+  printifyError: string | null;
+  printifyShopTitle: string | null;
   addToCart: (item: CartItem) => void;
   removeFromCart: (productId: string, color: string, size: string) => void;
   updateCartQuantity: (productId: string, color: string, size: string, quantity: number) => void;
@@ -31,13 +34,15 @@ export const useAppStore = create<AppState>()(
       wishlist: [],
       printifyProducts: [],
       isPrintifySyncing: false,
+      isPrintifyConfigured: false,
+      printifyError: null,
+      printifyShopTitle: null,
       addToCart: (item) => set((state) => {
         const existingIndex = state.cart.findIndex(
-          (c) => c.product.id === item.product.id && 
-                 c.selectedColor === item.selectedColor && 
+          (c) => c.product.id === item.product.id &&
+                 c.selectedColor === item.selectedColor &&
                  c.selectedSize === item.selectedSize
         );
-
         if (existingIndex > -1) {
           const newCart = [...state.cart];
           newCart[existingIndex].quantity += item.quantity;
@@ -69,23 +74,88 @@ export const useAppStore = create<AppState>()(
       setPrintifyProducts: (products) => set({ printifyProducts: products }),
       fetchPrintifyProducts: async () => {
         try {
-          set({ isPrintifySyncing: true });
+          set({ isPrintifySyncing: true, printifyError: null });
+          console.group('[Printify Integration] Fetching live products...');
+          console.log('[Printify] Initiating live sync from /api/printify/products...');
+
+          // Also check status in parallel for shop details & token verification
+          fetch('/api/printify/status')
+            .then(async (statusRes) => {
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                console.log('[Printify Status Check]', statusData);
+                if (statusData.configured) {
+                  set({
+                    isPrintifyConfigured: true,
+                    printifyShopTitle: statusData.shopTitle || null,
+                  });
+                }
+                if (statusData.error) {
+                  console.error('[Printify Status Error]:', statusData.error, statusData.message);
+                }
+              } else {
+                console.warn('[Printify Status] HTTP', statusRes.status, statusRes.statusText);
+              }
+            })
+            .catch((err) => {
+              console.warn('[Printify Status] Could not reach /api/printify/status:', err.message);
+            });
+
           const res = await fetch('/api/printify/products');
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.products) && data.products.length > 0) {
-              set({ printifyProducts: data.products });
-            }
+          console.log(`[Printify API] Response HTTP status: ${res.status} ${res.statusText}`);
+
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            const rawBody = await res.text();
+            const preview = rawBody.slice(0, 300);
+            console.error('[Printify API Error] Expected JSON but received HTML/text. Endpoint returned:', preview);
+            console.error('[Printify API Hint] If on Vercel, ensure api/ serverless functions and vercel.json rewrites are deployed.');
+            set({
+              printifyError: `Non-JSON response from server (${res.status}). Serverless function routing may be missing.`,
+            });
+            return;
           }
-        } catch (err) {
-          console.warn('[Printify Store] Sync error:', err);
+
+          const data = await res.json();
+          console.log('[Printify API Data]:', data);
+
+          if (data.configured !== undefined) {
+            set({ isPrintifyConfigured: Boolean(data.configured) });
+          }
+
+          if (data.success && Array.isArray(data.products)) {
+            console.log(`[Printify Success] Loaded ${data.products.length} live Printify products!`);
+            set({
+              printifyProducts: data.products,
+              isPrintifyConfigured: true,
+              printifyError: null,
+            });
+            if (data.products.length === 0) {
+              console.warn('[Printify Warning] Shop connected successfully, but 0 products found. Ensure you have published products in your Printify store.');
+            }
+          } else {
+            const errorMsg = data.message || data.error || 'Failed to sync products from Printify';
+            console.error('[Printify Sync Failure]:', errorMsg, data);
+            set({
+              printifyError: errorMsg,
+              isPrintifyConfigured: Boolean(data.configured),
+            });
+          }
+        } catch (err: any) {
+          console.error('[Printify Network Error]:', err.message);
+          set({ printifyError: err.message });
         } finally {
           set({ isPrintifySyncing: false });
+          console.groupEnd();
         }
       },
     }),
     {
       name: 'zavento-storage',
+      partialize: (state) => ({
+        cart: state.cart,
+        wishlist: state.wishlist,
+      }),
     }
   )
 );
